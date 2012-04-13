@@ -1,12 +1,19 @@
+/**
+ *
+ * This is a Greasemonkey script and must be run using Greasemonkey 0.8 or newer, or Google Chrome.
+ *
+ * @author Meitar Moscovitz <meitar@maymay.net>
+ */
 // ==UserScript==
 // @name           Eyes of Arcadia
-// @version        0.9
+// @version        0.9.1
 // @namespace      http://maybemaimed.com/playground/eyes-of-arcadia/
 // @description    Automatically tests various social networks for user profiles whose names match the profile you're currently viewing. (Must be logged in to some networks for users on that network to be found. Not guaranteed to find the same human, but it works often.)
 // @include        http://www.okcupid.com/profile/*
 // @include        https://fetlife.com/users/*
 // @include        https://twitter.com/*
 // @include        http://twitter.com/*
+// @include        http://*.livejournal.com/profile*
 // ==/UserScript==
 
 ARCADIA = {};
@@ -23,8 +30,55 @@ ARCADIA.log = function (msg) {
 ARCADIA.found_urls = {};
 ARCADIA.Networks = {};
 
+ARCADIA.Networks.LiveJournal = {
+    'profile_url_match': 'livejournal.com',
+    'profile_url_api'  : 'https://www.livejournal.com/userinfo.bml?user=',
+    'http_request_method': 'HEAD',
+    'successFunction': function (response) {
+        ARCADIA.log('executing LiveJournal.successFunction()');
+        if (/livejournal\.com\/profile/.test(response.finalUrl)) {
+            ARCADIA.found_urls['LiveJournal'] = {
+                'href': response.finalUrl,
+                'injected': false
+            };
+            for (var k in ARCADIA.Networks) {
+                if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
+                    for (var u in ARCADIA.found_urls) {
+                        if (ARCADIA.found_urls[u] && !ARCADIA.found_urls[u].injected) {
+                            ARCADIA.Networks[k].injectButtonHTML(ARCADIA.found_urls[u].href, u);
+                            ARCADIA.found_urls[u].injected = true;
+                        }
+                    }
+                }
+            }
+        }
+    },
+    'injectButtonHTML': function (link_url, net_name) {
+        ARCADIA.log('executing LiveJournal.injectButtonHTML(' + link_url + ', ' + net_name + ')');
+        var tr = document.createElement('tr');
+        var th = document.createElement('th');
+        th.innerHTML = net_name;
+        tr.appendChild(th);
+        var td = document.createElement('td');
+        var a = document.createElement('a');
+        a.className = 'url';
+        a.setAttribute('rel', 'me');
+        a.setAttribute('href', link_url);
+        a.innerHTML = 'Eyes of Arcadia found a ' + net_name + ' profile with this name.';
+        td.appendChild(a);
+        tr.appendChild(td);
+        var node = document.querySelector('.userinfo tr:last-child');
+        node.parentNode.appendChild(tr);
+    },
+    'getProfileName': function () {
+        ARCADIA.log('executing LiveJournal.getProfileName()');
+        return document.querySelector('.ljuser').getAttribute('lj:user');
+    }
+};
+
 ARCADIA.Networks.Twitter = {
-    'profile_url_prefix' : 'https://twitter.com/',
+    'profile_url_match': 'https://twitter.com/',
+    'profile_url_api'  : 'https://twitter.com/',
     'http_request_method': 'HEAD',
     'successFunction': function (response) {
         ARCADIA.log('executing Twitter.successFunction()');
@@ -34,7 +88,7 @@ ARCADIA.Networks.Twitter = {
                 'injected': false
             };
             for (var k in ARCADIA.Networks) {
-                if (ARCADIA.Networks[k].profile_url_prefix.match(window.location.host)) {
+                if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
                     for (var u in ARCADIA.found_urls) {
                         if (ARCADIA.found_urls[u] && !ARCADIA.found_urls[u].injected) {
                             ARCADIA.Networks[k].injectButtonHTML(ARCADIA.found_urls[u].href, u);
@@ -73,7 +127,8 @@ ARCADIA.Networks.Twitter = {
 };
 
 ARCADIA.Networks.OkCupid = {
-    'profile_url_prefix' : 'http://www.okcupid.com/profile/',
+    'profile_url_match': 'http://www.okcupid.com/profile/',
+    'profile_url_api'  : 'http://www.okcupid.com/profile/',
     'http_request_method': 'GET',
     'successFunction': function (response) {
         ARCADIA.log('executing OkCupid.successFunction()');
@@ -83,7 +138,7 @@ ARCADIA.Networks.OkCupid = {
                 'injected': false
             };
             for (var k in ARCADIA.Networks) {
-                if (ARCADIA.Networks[k].profile_url_prefix.match(window.location.host)) {
+                if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
                     for (var u in ARCADIA.found_urls) {
                         if (ARCADIA.found_urls[u] && !ARCADIA.found_urls[u].injected) {
                             ARCADIA.Networks[k].injectButtonHTML(ARCADIA.found_urls[u].href, u);
@@ -115,7 +170,8 @@ ARCADIA.Networks.OkCupid = {
 };
 
 ARCADIA.Networks.FetLife = {
-    'profile_url_prefix' : 'https://fetlife.com/', // trailing slash!
+    'profile_url_match': 'https://fetlife.com/',
+    'profile_url_api'  : 'https://fetlife.com/',
     'http_request_method': 'HEAD',
     'successFunction': function (response) {
         ARCADIA.log('executing FetLife.successFunction()');
@@ -125,7 +181,7 @@ ARCADIA.Networks.FetLife = {
                 'injected': false
             };
             for (var k in ARCADIA.Networks) {
-                if (ARCADIA.Networks[k].profile_url_prefix.match(window.location.host)) {
+                if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
                     for (var u in ARCADIA.found_urls) {
                         if (ARCADIA.found_urls[u] && !ARCADIA.found_urls[u].injected) {
                             ARCADIA.Networks[k].injectButtonHTML(ARCADIA.found_urls[u].href, u);
@@ -153,9 +209,30 @@ ARCADIA.Networks.FetLife = {
     }
 };
 
+ARCADIA.isProfileSubdomain = function () {
+    if (3 === window.location.host.split('.').length) {
+        return true;
+    } else {
+        return false;
+    }
+};
+ARCADIA.matchHost = function (str) {
+    var x;
+    var fqdn = window.location.host;
+    var fqdn_parts = fqdn.split('.');
+    if (ARCADIA.isProfileSubdomain()) {
+        var subdomain = fqdn.split('.')[0];
+        x = fqdn.substring(subdomain.length + 1, fqdn.length);
+    } else {
+        x = fqdn;
+    }
+    return str.match(x);
+};
+
 ARCADIA.getProfileName = function () {
+    ARCADIA.log('Running on perspective from ' + window.location.host);
     for (var k in ARCADIA.Networks) {
-        if (ARCADIA.Networks[k].profile_url_prefix.match(window.location.host)) {
+        if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
             return ARCADIA.Networks[k].getProfileName();
         }
     }
@@ -166,18 +243,21 @@ ARCADIA.getProfileName = function () {
 ARCADIA.main = function () {
     // Grab the profile's username from this network, bailing if none found.
     var nickname = ARCADIA.getProfileName();
-    if (!nickname) { return; }
+    if (!nickname) {
+        ARCADIA.log('No profile nickname found. Aborting.');
+        return;
+    }
     ARCADIA.log('Found nickname ' + nickname);
 
     // Search for this username on all known networks
     for (var k in ARCADIA.Networks) {
         // except the current one, obviously.
-        if (ARCADIA.Networks[k].profile_url_prefix.match(window.location.host)) {
+        if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
             continue;
         }
         GM_xmlhttpRequest({
             method: ARCADIA.Networks[k].http_request_method,
-            url: ARCADIA.Networks[k].profile_url_prefix + nickname,
+            url: ARCADIA.Networks[k].profile_url_api + nickname,
             onload: ARCADIA.Networks[k].successFunction
         });
     }
