@@ -6,8 +6,9 @@
  */
 // ==UserScript==
 // @name           Eyes of Arcadia
-// @version        0.9.2.1
+// @version        0.9.3
 // @namespace      http://maybemaimed.com/playground/eyes-of-arcadia/
+// @updateURL      https://userscripts.org/scripts/source/130861.user.js
 // @description    Automatically tests various social networks for user profiles whose names match the profile you're currently viewing. (Must be logged in to some networks for users on that network to be found. Not guaranteed to find the same human, but it works often.)
 // @include        http://www.okcupid.com/profile/*
 // @include        https://fetlife.com/users/*
@@ -51,6 +52,7 @@ ARCADIA.Networks.Tumblr = {
     //       See: http://www.tumblr.com/docs/en/api/v2
     'profile_url_match': 'tumblr.com',
     'profile_url_api'  : 'http://', // the API here is just the domain name
+    'user_is_subdomain': true,
     'http_request_method': 'HEAD',
     'successFunction': function (response) {
         ARCADIA.log('executing Tumblr.successFunction()');
@@ -100,6 +102,7 @@ ARCADIA.Networks.Tumblr = {
 ARCADIA.Networks.WordPress = {
     'profile_url_match': 'wordpress.com',
     'profile_url_api'  : 'https://public-api.wordpress.com/rest/v1/sites/',
+    'user_is_subdomain': true,
     'http_request_method': 'GET',
     'successFunction': function (response) {
         ARCADIA.log('executing WordPress.successFunction()');
@@ -373,8 +376,8 @@ ARCADIA.main = function () {
             continue;
         }
         var request_uri = this.Networks[k].profile_url_api + this.nickname;
-        // WordPress and Tumblr searches happen by domain, so take care.
-        if ('WordPress' === k || 'Tumblr' === k) {
+        // Some services, like WordPress & Tumblr, treat subdomains as user IDs.
+        if (this.Networks[k].user_is_subdomain) {
             request_uri += '.' + this.Networks[k].profile_url_match;
         }
         GM_xmlhttpRequest({
