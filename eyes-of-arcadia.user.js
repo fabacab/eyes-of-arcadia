@@ -6,7 +6,7 @@
  */
 // ==UserScript==
 // @name           Eyes of Arcadia
-// @version        0.9.2
+// @version        0.9.2.1
 // @namespace      http://maybemaimed.com/playground/eyes-of-arcadia/
 // @description    Automatically tests various social networks for user profiles whose names match the profile you're currently viewing. (Must be logged in to some networks for users on that network to be found. Not guaranteed to find the same human, but it works often.)
 // @include        http://www.okcupid.com/profile/*
@@ -16,6 +16,7 @@
 // @include        http://*.livejournal.com/profile*
 // @include        https://*.wordpress.com/*
 // @include        http://*.wordpress.com/*
+// @include        http://*.tumblr.com/*
 // ==/UserScript==
 
 ARCADIA = {};
@@ -44,6 +45,58 @@ ARCADIA.init = function () {
 window.addEventListener('load', ARCADIA.init);
 
 // TODO: Is it possible to split these out into their own files in Greasemonkey?
+
+ARCADIA.Networks.Tumblr = {
+    // TODO: Support Tumblr's "custom" domains.
+    //       See: http://www.tumblr.com/docs/en/api/v2
+    'profile_url_match': 'tumblr.com',
+    'profile_url_api'  : 'http://', // the API here is just the domain name
+    'http_request_method': 'HEAD',
+    'successFunction': function (response) {
+        ARCADIA.log('executing Tumblr.successFunction()');
+        if (200 === response.status || 301 === response.status) {
+            ARCADIA.found_urls['Tumblr'].href = response.finalUrl;
+            for (var k in ARCADIA.Networks) {
+                if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
+                    for (var u in ARCADIA.found_urls) {
+                        if (ARCADIA.found_urls[u].href && (false === ARCADIA.found_urls[u].injected)) {
+                            ARCADIA.Networks[k].injectButtonHTML(ARCADIA.found_urls[u].href, u);
+                            ARCADIA.found_urls[u].injected = true;
+                        }
+                    }
+                }
+            }
+        }
+    },
+    'injectButtonHTML': function (link_url, net_name) {
+        ARCADIA.log('executing Tumblr.injectButtonHTML(' + link_url + ', ' + net_name + ')');
+        var container;
+        if (document.getElementById('eyes-of-arcadia-container')) {
+            container = document.getElementById('eyes-of-arcadia-container')
+        } else {
+            container = document.createElement('div');
+            container.id = 'eyes-of-arcadia-container';
+            container.style.position = 'fixed';
+            container.style.top = '25px';
+            container.style.right = '0';
+        }
+        var a = document.createElement('a');
+        a.href = link_url;
+        a.innerHTML = net_name;
+        a.style.display = 'block';
+        a.style.backgroundColor = 'green';
+        a.style.color = 'white';
+        a.style.textAlign = 'center';
+        a.style.padding = '10px 5px';
+        a.style.margin = '5px';
+        container.appendChild(a);
+        document.body.appendChild(container);
+    },
+    'getProfileName': function () {
+        return window.location.host.split('.')[0];
+    }
+};
+
 ARCADIA.Networks.WordPress = {
     'profile_url_match': 'wordpress.com',
     'profile_url_api'  : 'https://public-api.wordpress.com/rest/v1/sites/',
@@ -87,12 +140,17 @@ ARCADIA.Networks.WordPress = {
             container.id = 'eyes-of-arcadia-container';
             container.style.position = 'fixed';
             container.style.top = '0';
-            container.style.left = '0';
+            container.style.right = '0';
         }
-        // TODO: Prettify these.
         var a = document.createElement('a');
         a.href = link_url;
         a.innerHTML = net_name;
+        a.style.display = 'block';
+        a.style.backgroundColor = 'green';
+        a.style.color = 'white';
+        a.style.textAlign = 'center';
+        a.style.padding = '10px 5px';
+        a.style.margin = '5px';
         container.appendChild(a);
         document.body.appendChild(container);
     },
@@ -315,8 +373,8 @@ ARCADIA.main = function () {
             continue;
         }
         var request_uri = this.Networks[k].profile_url_api + this.nickname;
-        // WordPress searches happen by domain, so make an exception.
-        if ('WordPress' === k) {
+        // WordPress and Tumblr searches happen by domain, so take care.
+        if ('WordPress' === k || 'Tumblr' === k) {
             request_uri += '.' + this.Networks[k].profile_url_match;
         }
         GM_xmlhttpRequest({
