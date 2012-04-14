@@ -6,7 +6,7 @@
  */
 // ==UserScript==
 // @name           Eyes of Arcadia
-// @version        0.9.1
+// @version        0.9.2
 // @namespace      http://maybemaimed.com/playground/eyes-of-arcadia/
 // @description    Automatically tests various social networks for user profiles whose names match the profile you're currently viewing. (Must be logged in to some networks for users on that network to be found. Not guaranteed to find the same human, but it works often.)
 // @include        http://www.okcupid.com/profile/*
@@ -14,6 +14,8 @@
 // @include        https://twitter.com/*
 // @include        http://twitter.com/*
 // @include        http://*.livejournal.com/profile*
+// @include        https://*.wordpress.com/*
+// @include        http://*.wordpress.com/*
 // ==/UserScript==
 
 ARCADIA = {};
@@ -24,11 +26,80 @@ ARCADIA.CONFIG = {
 // Utility debugging function.
 ARCADIA.log = function (msg) {
     if (!ARCADIA.CONFIG.debug) { return; }
-    console.log('EYES OF ARCADIA: ' + msg);
+    GM_log('EYES OF ARCADIA: ' + msg);
 };
 
-ARCADIA.found_urls = {};
+// Initializations.
 ARCADIA.Networks = {};
+ARCADIA.found_urls = {};
+ARCADIA.init = function () {
+    for (var k in ARCADIA.Networks) {
+        ARCADIA.found_urls[k] = {
+            'href': undefined,
+            'injected': false
+        };
+    }
+    ARCADIA.main();
+}
+window.addEventListener('load', ARCADIA.init);
+
+// TODO: Is it possible to split these out into their own files in Greasemonkey?
+ARCADIA.Networks.WordPress = {
+    'profile_url_match': 'wordpress.com',
+    'profile_url_api'  : 'https://public-api.wordpress.com/rest/v1/sites/',
+    'http_request_method': 'GET',
+    'successFunction': function (response) {
+        ARCADIA.log('executing WordPress.successFunction()');
+        if (200 === response.status) {
+            if (ARCADIA.Networks['WordPress'].second_try) {
+                ARCADIA.found_urls['WordPress'].href = 'https://' + ARCADIA.nickname.replace(/(-|_)+/, '') + '.wordpress.com/';
+            } else {
+                ARCADIA.found_urls['WordPress'].href = 'https://' + ARCADIA.nickname + '.' + ARCADIA.Networks['WordPress'].profile_url_match + '/';
+            }
+            for (var k in ARCADIA.Networks) {
+                if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
+                    for (var u in ARCADIA.found_urls) {
+                        if (ARCADIA.found_urls[u].href && (false === ARCADIA.found_urls[u].injected)) {
+                            ARCADIA.Networks[k].injectButtonHTML(ARCADIA.found_urls[u].href, u);
+                            ARCADIA.found_urls[u].injected = true;
+                        }
+                    }
+                }
+            }
+        } else if (404 === response.status && !ARCADIA.Networks['WordPress'].second_try) {
+            // Try again, but this time remove any dashes and underscores.
+            ARCADIA.Networks['WordPress'].second_try = true;
+            var x = ARCADIA.nickname.replace(/(-|_)+/, '') + '.wordpress.com';
+            GM_xmlhttpRequest({
+                method: ARCADIA.Networks['WordPress'].http_request_method,
+                url: ARCADIA.Networks['WordPress'].profile_url_api + x,
+                onload: ARCADIA.Networks['WordPress'].successFunction
+            });
+        }
+    },
+    'injectButtonHTML': function (link_url, net_name) {
+        ARCADIA.log('executing WordPress.injectButtonHTML(' + link_url + ', ' + net_name + ')');
+        var container;
+        if (document.getElementById('eyes-of-arcadia-container')) {
+            container = document.getElementById('eyes-of-arcadia-container')
+        } else {
+            container = document.createElement('div');
+            container.id = 'eyes-of-arcadia-container';
+            container.style.position = 'fixed';
+            container.style.top = '0';
+            container.style.left = '0';
+        }
+        // TODO: Prettify these.
+        var a = document.createElement('a');
+        a.href = link_url;
+        a.innerHTML = net_name;
+        container.appendChild(a);
+        document.body.appendChild(container);
+    },
+    'getProfileName': function () {
+        return window.location.host.split('.')[0];
+    }
+};
 
 ARCADIA.Networks.LiveJournal = {
     'profile_url_match': 'livejournal.com',
@@ -37,14 +108,11 @@ ARCADIA.Networks.LiveJournal = {
     'successFunction': function (response) {
         ARCADIA.log('executing LiveJournal.successFunction()');
         if (/livejournal\.com\/profile/.test(response.finalUrl)) {
-            ARCADIA.found_urls['LiveJournal'] = {
-                'href': response.finalUrl,
-                'injected': false
-            };
+            ARCADIA.found_urls['LiveJournal'].href = response.finalUrl;
             for (var k in ARCADIA.Networks) {
                 if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
                     for (var u in ARCADIA.found_urls) {
-                        if (ARCADIA.found_urls[u] && !ARCADIA.found_urls[u].injected) {
+                        if (ARCADIA.found_urls[u].href && (false === ARCADIA.found_urls[u].injected)) {
                             ARCADIA.Networks[k].injectButtonHTML(ARCADIA.found_urls[u].href, u);
                             ARCADIA.found_urls[u].injected = true;
                         }
@@ -83,14 +151,11 @@ ARCADIA.Networks.Twitter = {
     'successFunction': function (response) {
         ARCADIA.log('executing Twitter.successFunction()');
         if (200 === response.status) {
-            ARCADIA.found_urls['Twitter'] = {
-                'href': response.finalUrl,
-                'injected': false
-            };
+            ARCADIA.found_urls['Twitter'].href = response.finalUrl;
             for (var k in ARCADIA.Networks) {
                 if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
                     for (var u in ARCADIA.found_urls) {
-                        if (ARCADIA.found_urls[u] && !ARCADIA.found_urls[u].injected) {
+                        if (ARCADIA.found_urls[u].href && (false === ARCADIA.found_urls[u].injected)) {
                             ARCADIA.Networks[k].injectButtonHTML(ARCADIA.found_urls[u].href, u);
                             ARCADIA.found_urls[u].injected = true;
                         }
@@ -133,14 +198,11 @@ ARCADIA.Networks.OkCupid = {
     'successFunction': function (response) {
         ARCADIA.log('executing OkCupid.successFunction()');
         if (/"screenname"/.test(response.responseText)) {
-            ARCADIA.found_urls['OkCupid'] = {
-                'href': response.finalUrl,
-                'injected': false
-            };
+            ARCADIA.found_urls['OkCupid'].href = response.finalUrl;
             for (var k in ARCADIA.Networks) {
                 if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
                     for (var u in ARCADIA.found_urls) {
-                        if (ARCADIA.found_urls[u] && !ARCADIA.found_urls[u].injected) {
+                        if (ARCADIA.found_urls[u].href && (false === ARCADIA.found_urls[u].injected)) {
                             ARCADIA.Networks[k].injectButtonHTML(ARCADIA.found_urls[u].href, u);
                             ARCADIA.found_urls[u].injected = true;
                         }
@@ -176,14 +238,11 @@ ARCADIA.Networks.FetLife = {
     'successFunction': function (response) {
         ARCADIA.log('executing FetLife.successFunction()');
         if (/user/.test(response.finalUrl)) {
-            ARCADIA.found_urls['FetLife'] = {
-                'href': response.finalUrl,
-                'injected': false
-            };
+            ARCADIA.found_urls['FetLife'].href = response.finalUrl;
             for (var k in ARCADIA.Networks) {
                 if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
                     for (var u in ARCADIA.found_urls) {
-                        if (ARCADIA.found_urls[u] && !ARCADIA.found_urls[u].injected) {
+                        if (ARCADIA.found_urls[u].href && (false === ARCADIA.found_urls[u].injected)) {
                             ARCADIA.Networks[k].injectButtonHTML(ARCADIA.found_urls[u].href, u);
                             ARCADIA.found_urls[u].injected = true;
                         }
@@ -220,7 +279,7 @@ ARCADIA.matchHost = function (str) {
     var x;
     var fqdn = window.location.host;
     var fqdn_parts = fqdn.split('.');
-    if (ARCADIA.isProfileSubdomain()) {
+    if (this.isProfileSubdomain()) {
         var subdomain = fqdn.split('.')[0];
         x = fqdn.substring(subdomain.length + 1, fqdn.length);
     } else {
@@ -230,10 +289,10 @@ ARCADIA.matchHost = function (str) {
 };
 
 ARCADIA.getProfileName = function () {
-    ARCADIA.log('Running on perspective from ' + window.location.host);
-    for (var k in ARCADIA.Networks) {
-        if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
-            return ARCADIA.Networks[k].getProfileName();
+    this.log('Running on perspective from ' + window.location.host);
+    for (var k in this.Networks) {
+        if (this.matchHost(this.Networks[k].profile_url_match)) {
+            return this.Networks[k].getProfileName();
         }
     }
     return false;
@@ -242,25 +301,28 @@ ARCADIA.getProfileName = function () {
 // This is the main() function, executed on page load.
 ARCADIA.main = function () {
     // Grab the profile's username from this network, bailing if none found.
-    var nickname = ARCADIA.getProfileName();
-    if (!nickname) {
-        ARCADIA.log('No profile nickname found. Aborting.');
+    this.nickname = this.getProfileName();
+    if (!this.nickname) {
+        this.log('No profile nickname found. Aborting.');
         return;
     }
-    ARCADIA.log('Found nickname ' + nickname);
+    this.log('Found nickname ' + this.nickname);
 
     // Search for this username on all known networks
-    for (var k in ARCADIA.Networks) {
+    for (var k in this.Networks) {
         // except the current one, obviously.
-        if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
+        if (this.matchHost(this.Networks[k].profile_url_match)) {
             continue;
         }
+        var request_uri = this.Networks[k].profile_url_api + this.nickname;
+        // WordPress searches happen by domain, so make an exception.
+        if ('WordPress' === k) {
+            request_uri += '.' + this.Networks[k].profile_url_match;
+        }
         GM_xmlhttpRequest({
-            method: ARCADIA.Networks[k].http_request_method,
-            url: ARCADIA.Networks[k].profile_url_api + nickname,
-            onload: ARCADIA.Networks[k].successFunction
+            method: this.Networks[k].http_request_method,
+            url: request_uri,
+            onload: this.Networks[k].successFunction
         });
     }
 };
-
-window.addEventListener('load', ARCADIA.main);
