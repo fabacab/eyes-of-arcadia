@@ -6,7 +6,7 @@
  */
 // ==UserScript==
 // @name           Eyes of Arcadia
-// @version        0.9.3
+// @version        0.9.3.1
 // @namespace      http://maybemaimed.com/playground/eyes-of-arcadia/
 // @updateURL      https://userscripts.org/scripts/source/130861.user.js
 // @description    Automatically tests various social networks for user profiles whose names match the profile you're currently viewing. (Must be logged in to some networks for users on that network to be found. Not guaranteed to find the same human, but it works often.)
@@ -18,6 +18,7 @@
 // @include        https://*.wordpress.com/*
 // @include        http://*.wordpress.com/*
 // @include        http://*.tumblr.com/*
+// @exclude        http://www.tumblr.com/*
 // ==/UserScript==
 
 ARCADIA = {};
@@ -42,7 +43,7 @@ ARCADIA.init = function () {
         };
     }
     ARCADIA.main();
-}
+};
 window.addEventListener('load', ARCADIA.init);
 
 // TODO: Is it possible to split these out into their own files in Greasemonkey?
