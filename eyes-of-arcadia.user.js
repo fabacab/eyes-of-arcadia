@@ -6,7 +6,7 @@
  */
 // ==UserScript==
 // @name           Eyes of Arcadia
-// @version        0.9.3.1
+// @version        0.9.3.2
 // @namespace      http://maybemaimed.com/playground/eyes-of-arcadia/
 // @updateURL      https://userscripts.org/scripts/source/130861.user.js
 // @description    Automatically tests various social networks for user profiles whose names match the profile you're currently viewing. (Must be logged in to some networks for users on that network to be found. Not guaranteed to find the same human, but it works often.)
@@ -19,6 +19,7 @@
 // @include        http://*.wordpress.com/*
 // @include        http://*.tumblr.com/*
 // @exclude        http://www.tumblr.com/*
+// @include        https://plus.google.com/*
 // ==/UserScript==
 
 ARCADIA = {};
@@ -160,6 +161,42 @@ ARCADIA.Networks.WordPress = {
     },
     'getProfileName': function () {
         return window.location.host.split('.')[0];
+    }
+};
+
+ARCADIA.Networks.Google_Plus = {
+    'profile_url_match': 'plus.google.com',
+    'profile_url_api'  : 'https://profiles.google.com/',
+    'http_request_method': 'HEAD',
+    'successFunction': function (response) {
+        ARCADIA.log('executing Google_Plus.successFunction()');
+        if (/plus\.google\.com\/[0-9]+/.test(response.finalUrl)) {
+            ARCADIA.found_urls['Google_Plus'].href = response.finalUrl;
+            for (var k in ARCADIA.Networks) {
+                if (ARCADIA.matchHost(ARCADIA.Networks[k].profile_url_match)) {
+                    for (var u in ARCADIA.found_urls) {
+                        if (ARCADIA.found_urls[u].href && (false === ARCADIA.found_urls[u].injected)) {
+                            ARCADIA.Networks[k].injectButtonHTML(ARCADIA.found_urls[u].href, u);
+                            ARCADIA.found_urls[u].injected = true;
+                        }
+                    }
+                }
+            }
+        }
+    },
+    'injectButtonHTML': function (link_url, net_name) {
+        ARCADIA.log('executing Google_Plus.injectButtonHTML(' + link_url + ',' + net_name + ')');
+        var a = document.createElement('a');
+        a.className = 'a-gb a-f-e h-gb-LX FT';
+        a.setAttribute('rel', 'me');
+        a.setAttribute('href', link_url);
+        a.setAttribute('role', 'tab');
+        a.innerHTML = '<div class="a-gb-aa">' + net_name + '</div>';
+        var node = document.querySelector('div[role=tablist]');
+        node.appendChild(a);
+    },
+    'getProfileName': function () {
+        // TODO: Figure out how to get profile username/info off Google Plus profiles.
     }
 };
 
