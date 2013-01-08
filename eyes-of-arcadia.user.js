@@ -6,7 +6,7 @@
  */
 // ==UserScript==
 // @name           Eyes of Arcadia
-// @version        0.9.3.2
+// @version        0.9.3.3
 // @namespace      http://maybemaimed.com/playground/eyes-of-arcadia/
 // @updateURL      https://userscripts.org/scripts/source/130861.user.js
 // @description    Automatically tests various social networks for user profiles whose names match the profile you're currently viewing. (Must be logged in to some networks for users on that network to be found. Not guaranteed to find the same human, but it works often.)
@@ -17,6 +17,8 @@
 // @include        http://*.livejournal.com/profile*
 // @include        https://*.wordpress.com/*
 // @include        http://*.wordpress.com/*
+// @exclude        https://*.wordpress.com/wp-admin*
+// @exclude        http://*.wordpress.com/wp-admin*
 // @include        http://*.tumblr.com/*
 // @exclude        http://www.tumblr.com/*
 // @include        https://plus.google.com/*
@@ -144,7 +146,7 @@ ARCADIA.Networks.WordPress = {
             container = document.createElement('div');
             container.id = 'eyes-of-arcadia-container';
             container.style.position = 'fixed';
-            container.style.top = '0';
+            container.style.top = '30px';
             container.style.right = '0';
         }
         var a = document.createElement('a');
