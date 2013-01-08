@@ -22,6 +22,8 @@
 // @include        http://*.tumblr.com/*
 // @exclude        http://www.tumblr.com/*
 // @include        https://plus.google.com/*
+// @grant          GM_xmlhttpRequest
+// @grant          GM_log
 // ==/UserScript==
 
 ARCADIA = {};
